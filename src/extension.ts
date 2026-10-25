@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { writeEvidence } from "./evidence.ts";
+import { hasEquivalentEvidence, writeEvidence } from "./evidence.ts";
 import { loadConfig } from "./config.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { discoverProject, verify } from "./verification.ts";
@@ -18,10 +18,10 @@ export default function engineeringHarness(pi: ExtensionAPI): void {
   const automatic = config.automaticOnSettle;
   const project = (cwd: string) => discoverProject(cwd, config.searchRoot ?? cwd, config.verifyPath, config.projectRoot);
   const snapshot = async (root: string) => fingerprint(root).catch(() => undefined);
-  const summary = async (ctx: { cwd: string; sessionManager: { getSessionId(): string | undefined } }, outcome: string) => {
+  const summary = async (ctx: { cwd: string; sessionManager: { getSessionId(): string | undefined } }, outcome: string, recovered = false) => {
     if (!config.recordEvidence || !state) return;
     try {
-      await writeEvidence({
+      const record = {
         kind: "summary", schemaVersion: "1.0", harnessVersion: pkg.version,
         executionId: state.executionId, taskId: state.taskId, agentId: "main",
         ...(ctx.sessionManager.getSessionId() ? { sessionId: ctx.sessionManager.getSessionId() } : {}),
@@ -30,7 +30,9 @@ export default function engineeringHarness(pi: ExtensionAPI): void {
         acceptanceStatus: "not_evaluated", attempts: state.attempts ?? 0,
         repairContinuations: state.repairContinuations,
         ...(state.lastEvidencePath ? { lastEvidencePath: state.lastEvidencePath } : {}),
-      }, config.evidenceDir);
+      };
+      if (recovered && await hasEquivalentEvidence(record, config.evidenceDir)) { summarized = true; return; }
+      await writeEvidence(record, config.evidenceDir);
       summarized = true;
     } catch (error) { throw new Error(`Task summary evidence error: ${(error as Error).message}`); }
   };
@@ -45,7 +47,7 @@ export default function engineeringHarness(pi: ExtensionAPI): void {
       if (state?.verifying) {
         // An unfinished check has no trustworthy result after a process restart.
         state.lastEvidencePath = undefined;
-        if (config.recordEvidence) await summary(ctx, "error");
+        if (config.recordEvidence) await summary(ctx, "error", true);
         state.verifying = false;
         state.lastStatus = "error";
         pi.appendEntry("pi-engineering-harness-state", state);

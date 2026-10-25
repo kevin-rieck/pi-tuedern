@@ -100,6 +100,51 @@ test("resuming an unfinished automatic check records error, never success", asyn
   }
 });
 
+test("recovery does not duplicate an error summary when state clearing is interrupted", async () => {
+  const oldConfig = process.env.PI_HARNESS_CONFIG;
+  const oldAutomatic = process.env.PI_HARNESS_AUTOMATIC;
+  try {
+    const dir = await mkdtemp(join(tmpdir(), "pi-recovery-idempotence-"));
+    const configFile = join(dir, "config.json");
+    await writeFile(configFile, JSON.stringify({ evidenceDir: dir }));
+    process.env.PI_HARNESS_CONFIG = configFile;
+    process.env.PI_HARNESS_AUTOMATIC = "1";
+    const pending = { ...newExecution("before"), verifying: true, attempts: 1 };
+    const entries = [{ type: "custom", customType: "pi-engineering-harness-state", data: pending }];
+    const ctx = { cwd: dir, sessionManager: { getBranch: () => structuredClone(entries), getSessionId: () => "session" } };
+    const interruptedHandlers = {};
+    engineeringHarness({
+      on: (name, fn) => { interruptedHandlers[name] = fn; },
+      appendEntry: (customType, data) => {
+        if (customType === "pi-engineering-harness-state" && !data.verifying && data.lastStatus === "error") throw new Error("simulated crash before marker clear");
+        entries.push({ type: "custom", customType, data: structuredClone(data) });
+      },
+      registerCommand: () => {},
+    });
+    await assert.rejects(() => interruptedHandlers.session_start({}, ctx), /simulated crash/);
+    let records = await Promise.all((await readdir(dir)).filter((name) => name.endsWith(".json") && name !== "config.json").map(async (name) => JSON.parse(await readFile(join(dir, name), "utf8"))));
+    assert.equal(records.filter((record) => record.kind === "summary").length, 1);
+
+    const resumedHandlers = {};
+    engineeringHarness({ on: (name, fn) => { resumedHandlers[name] = fn; }, appendEntry: (customType, data) => entries.push({ type: "custom", customType, data: structuredClone(data) }), registerCommand: () => {} });
+    await resumedHandlers.session_start({}, { ...ctx, cwd: await mkdtemp(join(tmpdir(), "pi-recovery-moved-cwd-")) });
+    records = await Promise.all((await readdir(dir)).filter((name) => name.endsWith(".json") && name !== "config.json").map(async (name) => JSON.parse(await readFile(join(dir, name), "utf8"))));
+    const summaries = records.filter((record) => record.kind === "summary");
+    assert.equal(summaries.length, 1);
+    assert.equal(summaries[0].executionId, pending.executionId);
+    assert.equal(summaries[0].finalOutcome, "error");
+    assert.equal(summaries[0].attempts, 1);
+    assert.equal(summaries[0].acceptanceStatus, "not_evaluated");
+    assert.equal(entries.at(-1).data.verifying, false);
+    assert.equal(entries.at(-1).data.lastStatus, "error");
+  } finally {
+    if (oldConfig === undefined) delete process.env.PI_HARNESS_CONFIG;
+    else process.env.PI_HARNESS_CONFIG = oldConfig;
+    if (oldAutomatic === undefined) delete process.env.PI_HARNESS_AUTOMATIC;
+    else process.env.PI_HARNESS_AUTOMATIC = oldAutomatic;
+  }
+});
+
 test("opt-in settlement checks changed state, continues once, then passes and rechecks further edits", async () => {
   const old = process.env.PI_HARNESS_AUTOMATIC;
   const oldConfig = process.env.PI_HARNESS_CONFIG;
