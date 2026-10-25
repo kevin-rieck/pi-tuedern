@@ -1,6 +1,6 @@
 # Pi Engineering Harness (v0.1)
 
-Standalone verification for trusted Pi projects. `/verify` runs a project's `scripts/verify` and records a result; it does **not** assess product acceptance or initiate repairs. Automatic settlement and repair (PRD v0.2), orchestrator integration and profiles (v0.3) are not implemented.
+Standalone verification for trusted Pi projects. `/verify` runs a project's `scripts/verify` and records a result; it does **not** assess product acceptance or initiate repairs. An experimental, opt-in settlement gate with bounded repair is available; orchestrator integration and profiles (v0.3) are not implemented.
 
 ## Install / run
 
@@ -24,6 +24,10 @@ The verifier is independently importable from `src/verification.ts`: `verify({co
 
 Each run writes a restricted-permission JSON record outside the repo at `~/.pi/engineering-harness/evidence/<timestamp>-<uuid>.json` (override `evidenceDir` in library calls). Records include schemaVersion 1.0, command, result, identifiers, duration, attempt, and a hash of the root path; diagnostics are bounded and common token patterns redacted. Raw output and environment variables are not persisted. Regex redaction is **best effort**, not safe for secrets: do not print credentials in verification scripts. Evidence creation failure produces `error`, not a false success. `acceptanceStatus` is always `not_evaluated`.
 
+## Experimental automatic verification (not enabled by default)
+
+Set `PI_HARNESS_AUTOMATIC=1` **before starting Pi** in a trusted project, with Git available. A new user prompt snapshots tracked and untracked nonignored files. At `agent_before_settle`, any new/unknown state runs the same verifier; a failed check may ask for at most two repair continuations. With no changes it reports `not_applicable` in session state; a passed result is reused only while the snapshot remains the same. A failed repair with no edits stops. State is persisted as Pi session custom entries for resume; a new user prompt starts a new execution. Another extension's settlement handler may also request a continuation, so do not treat this as a hard completion barrier. Running without Git yields an unknown state and verifies conservatively. Evidence is per attempt, not a complete task-summary export yet. This mode is experimental; keep CI authoritative.
+
 ## Status
 
-PRD milestones M0/M1 are partial: standalone execution, unit tests and manual command are implemented. Lifecycle spike, three real language fixture projects, clean pinned-package install, and v0.2 repair controller remain to be completed before claiming the PRD's release gates. Pi versions other than 1.4.0 are untested.
+PRD milestones M0/M1/M2/M3 are partial: standalone execution, fixtures and an opt-in lifecycle implementation are tested with mocks. Real Pi lifecycle composition and interruption, pinned-package installation, versioned evidence schema validation, and full task summaries remain before the PRD's release gates. Pi versions other than 1.4.0 are untested.
