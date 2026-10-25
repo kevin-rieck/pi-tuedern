@@ -40,4 +40,4 @@ Set `automaticOnSettle: true` or `PI_HARNESS_AUTOMATIC=1` **before starting Pi**
 
 ## Status
 
-PRD milestones M0/M1/M2/M3 are partial: a real Pi 1.4.0 print-mode run confirmed fail → feedback continuation → pass with a competing handler registered before this harness. Print-mode interrupted verification, session resumption and a later handler overriding continuation remain unverified as release gates. Pi versions other than 1.4.0 are untested.
+PRD milestones M0/M1/M2/M3 are partial: a real Pi 1.4.0 print-mode run confirmed fail → feedback continuation → pass with a competing handler registered before this harness. Print-mode interrupted verification, session resumption and a later handler overriding continuation remain unverified as release gates. Pi versions other than 1.4.0 are untested. See [release evidence, acceptance matrix, and rollback](docs/release-status.md).

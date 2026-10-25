@@ -12,6 +12,7 @@
   "files": [
     "src",
     "schemas",
+    "docs",
     "README.md"
   ],
   "pi": {
