@@ -58,7 +58,7 @@ export default function engineeringHarness(pi: ExtensionAPI): void {
         return;
       }
       if (now && state.lastStatus === "passed" && state.lastFingerprint === now) return;
-      if (state.lastStatus === "failed" && state.repairContinuations > 0 && state.lastFingerprint === now) {
+      if (now && state.lastStatus === "failed" && state.repairContinuations > 0 && state.lastFingerprint === now) {
         await summary(ctx, "failed");
         return;
       }
@@ -81,7 +81,8 @@ export default function engineeringHarness(pi: ExtensionAPI): void {
         }
         state.attempts = (state.attempts ?? 0) + 1;
         state.lastEvidencePath = result.evidencePath;
-        const decision = decide(state, result, after, event.context.canContinue ? config.maxRepairContinuations : 0);
+        // The feedback draft makes a final assistant response runnable; the pre-draft context cannot.
+        const decision = decide(state, result, after, config.maxRepairContinuations);
         pi.appendEntry("pi-engineering-harness-state", state);
         ctx.ui.notify(`Verification ${result.status} (${result.durationMs}ms). Evidence: ${result.evidencePath ?? "unavailable"}${result.status === "passed" ? "" : `\n${result.diagnostics}`}`, result.status === "passed" ? "info" : "warning");
         if (decision !== "continue") await summary(ctx, result.status);

@@ -50,7 +50,7 @@ export async function fingerprint(root: string): Promise<string> {
 }
 
 export function decide(state: RepairState, result: VerificationResult, fingerprintNow: string | undefined, maxRepairs = 2): "continue" | "stop" {
-  const changedSinceFailure = state.lastFingerprint !== fingerprintNow;
+  const changedSinceFailure = !fingerprintNow || state.lastFingerprint !== fingerprintNow;
   state.lastStatus = result.status;
   state.lastFingerprint = fingerprintNow;
   if (result.status !== "failed" || state.repairContinuations >= maxRepairs || (state.repairContinuations > 0 && !changedSinceFailure)) return "stop";

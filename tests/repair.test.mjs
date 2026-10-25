@@ -17,6 +17,10 @@ test("two repair continuations per execution, no-change stops, new task resets",
   assert.equal(decide(state, result("failed"), "another"), "continue");
   assert.equal(decide(state, result("failed"), "third"), "stop");
   assert.equal(newExecution("before").repairContinuations, 0);
+  const unknown = newExecution();
+  assert.equal(decide(unknown, result("failed"), undefined), "continue");
+  assert.equal(decide(unknown, result("failed"), undefined), "continue");
+  assert.equal(decide(unknown, result("failed"), undefined), "stop");
 });
 
 test("snapshot catches dirty tracked edits and shell-created untracked files", async () => {
