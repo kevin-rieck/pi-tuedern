@@ -77,6 +77,7 @@ assert.equal(attempts.length, 1, JSON.stringify(attempts));
 assert.equal(attempts[0].status, "failed");
 assert.equal(attempts[0].repairContinuations, 0);
 assert.equal(first.filter((e) => e.type === "entry_appended" && e.entry?.customType === "pi-engineering-harness-feedback").length, 0, "later handler discarded feedback");
+assert.ok((await records()).some((r) => r.kind === "summary" && r.executionId === attempts[0].executionId && r.finalOutcome === "failed" && r.repairContinuations === 1), "suppressed continuation must leave terminal failed summary");
 const second = await run(true, false, ["This is a genuinely new task. Reply done without tools."]);
 attempts = (await records()).filter((r) => r.kind === "attempt");
 const resumed = attempts.filter((r) => r.executionId === attempts[0].executionId);

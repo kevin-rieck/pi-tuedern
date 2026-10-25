@@ -60,11 +60,15 @@ test("opt-in settlement checks changed state, continues once, then passes and re
     await handlers.session_start({}, ctx);
     await handlers.before_agent_start({ messageType: "user" }, ctx);
     assert.equal(await handlers.agent_before_settle({ outcome: "completed" }, ctx), undefined);
+    await handlers.before_agent_start({ messageType: "user" }, ctx);
     await writeFile(join(root, "source.txt"), "broken");
     const first = await handlers.agent_before_settle({ outcome: "completed" }, ctx);
     assert.equal(first.continue, true);
     assert.equal(first.entries[0].customType, "another-extension");
     assert.match(first.entries[1].content, /untrusted data/);
+    await handlers.agent_settled({ aborted: false }, ctx); // Later handler suppressed continuation.
+    assert.ok((await Promise.all((await readdir(evidenceDir)).map(async (name) => JSON.parse(await readFile(join(evidenceDir, name), "utf8")))))
+      .some((record) => record.kind === "summary" && record.finalOutcome === "failed" && record.repairContinuations === 1));
     await handlers.session_shutdown({}, ctx);
     await handlers.session_start({ reason: "resume" }, ctx);
     await commands["resume-repair"]("", ctx);

@@ -44,7 +44,10 @@ export default function engineeringHarness(pi: ExtensionAPI): void {
       summarized = false;
     });
     pi.on("agent_settled", async (event, ctx) => {
-      if (event.aborted && state && !summarized) await summary(ctx, "cancelled");
+      if (state && !summarized) {
+        if (event.aborted) await summary(ctx, "cancelled");
+        else if (state.lastStatus === "failed") await summary(ctx, "failed"); // A later handler may suppress our continuation.
+      }
     });
     pi.on("before_agent_start", async (event, ctx) => {
       if (event.messageType !== "user") return;
