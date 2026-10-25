@@ -1,0 +1,6 @@
+node_modules/
+.tmp-pi-reference/
+*.tgz
+coverage/
+dist/
+.pi/evidence/
