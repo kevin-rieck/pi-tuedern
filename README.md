@@ -24,9 +24,19 @@ The verifier is independently importable from `src/verification.ts`: `verify({co
 
 Each run writes a restricted-permission JSON record outside the repo at `~/.pi/engineering-harness/evidence/<timestamp>-<uuid>.json` (override `evidenceDir` in library calls). Records follow `schemas/evidence.schema.json` (schemaVersion 1.0) and include command, result, identifiers, duration, attempt, and a hash of the root path; diagnostics are bounded and common token patterns redacted. Raw output and environment variables are not persisted. Regex redaction is **best effort**, not safe for secrets: do not print credentials in verification scripts. Evidence creation failure produces `error`, not a false success. `acceptanceStatus` is always `not_evaluated`.
 
+## Configuration
+
+Defaults enable only manual `/verify`. To opt in, set `PI_HARNESS_CONFIG` to an absolute path to a trusted JSON file **before starting Pi**, for example:
+
+```json
+{"automaticOnSettle": true, "maxRepairContinuations": 2, "timeoutSeconds": 300}
+```
+
+Supported keys: `enabled` (default true), `verifyPath` (`scripts/verify`, relative inside the project), `automaticOnSettle` (false), `maxRepairContinuations` (2), `timeoutSeconds` (300), `maxFeedbackCharacters` (12000), `recordEvidence` (true), `evidenceDir` (default `~/.pi/engineering-harness/evidence`), `searchRoot` (default Pi cwd), and `projectRoot` (optional exact root). `persistRawOutput` must be false, `onMissingContract` must be `report-unavailable`, and `onChangeDetectionError` must be `verify`; other values/policies are not implemented. Unknown keys, wrong types, unsafe contract paths, malformed or missing files fail extension loading rather than silently disabling checks. Only this explicitly selected file is read; no untrusted repo configuration is loaded automatically. Legacy environment overrides `PI_HARNESS_AUTOMATIC=0|1`, `PI_HARNESS_SEARCH_ROOT`, and `PI_HARNESS_PROJECT_ROOT` take precedence over the file, which takes precedence over defaults. `enabled: false` unregisters both command and hook.
+
 ## Experimental automatic verification (not enabled by default)
 
-Set `PI_HARNESS_AUTOMATIC=1` **before starting Pi** in a trusted project, with Git available. A new user prompt snapshots tracked and untracked nonignored files. At `agent_before_settle`, any new/unknown state runs the same verifier; a failed check may ask for at most two repair continuations. With no changes it reports `not_applicable` in session state; a passed result is reused only while the snapshot remains the same. A failed repair with no edits stops. State is persisted as Pi session custom entries for resume; a new user prompt starts a new execution. Another extension's settlement handler may also request a continuation, so do not treat this as a hard completion barrier. Running without Git yields an unknown state and verifies conservatively. Evidence is per attempt, not a complete task-summary export yet. This mode is experimental; keep CI authoritative.
+Set `automaticOnSettle: true` or `PI_HARNESS_AUTOMATIC=1` **before starting Pi** in a trusted project, with Git available. A new user prompt snapshots tracked and untracked nonignored files. At `agent_before_settle`, any new/unknown state runs the same verifier; a failed check may ask for at most two repair continuations. With no changes it reports `not_applicable` in session state; a passed result is reused only while the snapshot remains the same. A failed repair with no edits stops. State is persisted as Pi session custom entries for resume. Every ordinary new user prompt starts a new execution, including the first prompt after resuming a session. Use `/resume-repair` to explicitly continue an interrupted failed repair using its remaining budget; do not use it for a new task. Another extension's settlement handler may also request a continuation, so do not treat this as a hard completion barrier. Running without Git yields an unknown state and verifies conservatively. Evidence is per attempt, not a complete task-summary export yet. This mode is experimental; keep CI authoritative.
 
 ## Status
 
