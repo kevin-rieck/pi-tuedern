@@ -13,6 +13,7 @@ export interface RepairState {
   lastStatus?: VerificationResult["status"];
   repairContinuations: number;
   attempts?: number;
+  verifying?: boolean;
   lastEvidencePath?: string;
 }
 

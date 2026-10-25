@@ -36,6 +36,70 @@ test("snapshot catches dirty tracked edits and shell-created untracked files", a
   assert.notEqual(await fingerprint(root), next);
 });
 
+test("a check that changes the repository cannot persist a passed attempt", async () => {
+  const oldConfig = process.env.PI_HARNESS_CONFIG;
+  const oldAutomatic = process.env.PI_HARNESS_AUTOMATIC;
+  try {
+    const root = await mkdtemp(join(tmpdir(), "pi-changing-check-"));
+    const evidenceDir = await mkdtemp(join(tmpdir(), "pi-changing-evidence-"));
+    execFileSync("git", ["init", "-q", root]);
+    await mkdir(join(root, "scripts"));
+    await writeFile(join(root, "scripts", "verify"), "#!/usr/bin/env bash\necho changed > source.txt\n", { mode: 0o755 });
+    await writeFile(join(root, "source.txt"), "original");
+    const configFile = join(evidenceDir, "harness.json");
+    await writeFile(configFile, JSON.stringify({ evidenceDir }));
+    process.env.PI_HARNESS_CONFIG = configFile;
+    process.env.PI_HARNESS_AUTOMATIC = "1";
+    const handlers = {};
+    engineeringHarness({ on: (name, fn) => { handlers[name] = fn; }, appendEntry: () => {}, registerCommand: () => {} });
+    const ctx = { cwd: root, sessionManager: { getSessionId: () => "session" }, ui: { notify: () => {} } };
+    await handlers.before_agent_start({ messageType: "user" }, ctx);
+    await writeFile(join(root, "source.txt"), "agent edit");
+    assert.equal(await handlers.agent_before_settle({ outcome: "completed" }, ctx), undefined);
+    const records = await Promise.all((await readdir(evidenceDir)).filter((name) => name !== "harness.json").map(async (name) => JSON.parse(await readFile(join(evidenceDir, name), "utf8"))));
+    assert.equal(records.find((record) => record.kind === "attempt").status, "error");
+    assert.equal(records.find((record) => record.kind === "summary").finalOutcome, "error");
+    assert.ok(records.every((record) => record.acceptanceStatus === "not_evaluated"));
+  } finally {
+    if (oldConfig === undefined) delete process.env.PI_HARNESS_CONFIG;
+    else process.env.PI_HARNESS_CONFIG = oldConfig;
+    if (oldAutomatic === undefined) delete process.env.PI_HARNESS_AUTOMATIC;
+    else process.env.PI_HARNESS_AUTOMATIC = oldAutomatic;
+  }
+});
+
+test("resuming an unfinished automatic check records error, never success", async () => {
+  const oldConfig = process.env.PI_HARNESS_CONFIG;
+  const oldAutomatic = process.env.PI_HARNESS_AUTOMATIC;
+  try {
+    const dir = await mkdtemp(join(tmpdir(), "pi-recovery-"));
+    const configFile = join(dir, "config.json");
+    await writeFile(configFile, JSON.stringify({ evidenceDir: dir }));
+    process.env.PI_HARNESS_CONFIG = configFile;
+    process.env.PI_HARNESS_AUTOMATIC = "1";
+    const pending = { ...newExecution("before"), verifying: true, attempts: 1 };
+    const entries = [{ type: "custom", customType: "pi-engineering-harness-state", data: pending }];
+    const handlers = {};
+    engineeringHarness({ on: (name, fn) => { handlers[name] = fn; }, appendEntry: (customType, data) => entries.push({ type: "custom", customType, data: structuredClone(data) }), registerCommand: () => {} });
+    const ctx = { cwd: dir, sessionManager: { getBranch: () => entries, getSessionId: () => "session" } };
+    await handlers.session_start({}, ctx);
+    const records = await Promise.all((await readdir(dir)).filter((name) => name.endsWith(".json") && name !== "config.json").map(async (name) => JSON.parse(await readFile(join(dir, name), "utf8"))));
+    assert.equal(records.length, 1);
+    assert.equal(records[0].executionId, pending.executionId);
+    assert.equal(records[0].finalOutcome, "error");
+    assert.equal(records[0].attempts, 1);
+    assert.equal(records[0].acceptanceStatus, "not_evaluated");
+    assert.equal(entries.at(-1).data.verifying, false);
+    await handlers.session_start({}, ctx);
+    assert.equal((await readdir(dir)).filter((name) => name.endsWith(".json")).length, 2); // config plus one summary
+  } finally {
+    if (oldConfig === undefined) delete process.env.PI_HARNESS_CONFIG;
+    else process.env.PI_HARNESS_CONFIG = oldConfig;
+    if (oldAutomatic === undefined) delete process.env.PI_HARNESS_AUTOMATIC;
+    else process.env.PI_HARNESS_AUTOMATIC = oldAutomatic;
+  }
+});
+
 test("opt-in settlement checks changed state, continues once, then passes and rechecks further edits", async () => {
   const old = process.env.PI_HARNESS_AUTOMATIC;
   const oldConfig = process.env.PI_HARNESS_CONFIG;

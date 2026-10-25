@@ -77,7 +77,11 @@ try {
   resumed.pi.stdin.write(JSON.stringify({ id: "task", type: "prompt", message: "Reply done without using tools." }) + "\n");
   await resumed.wait(() => resumed.events.some((e) => e.type === "agent_settled"));
   const after = await records();
-  assert.equal(after.filter((r) => r.kind === "summary" && r.executionId === crashedExecution).length, 0, "resume does not reconcile crashed execution");
+  const recovered = after.filter((r) => r.kind === "summary" && r.executionId === crashedExecution);
+  assert.equal(recovered.length, 1);
+  assert.equal(recovered[0].finalOutcome, "error");
+  assert.equal(recovered[0].attempts, 1);
+  assert.equal(recovered[0].acceptanceStatus, "not_evaluated");
   assert.ok(after.some((r) => r.kind === "summary" && r.finalOutcome === "not_applicable" && r.executionId !== crashedExecution));
-  console.log("Real Pi: pre-settlement abort cancelled; crash mid-check left no result; next task did not recover prior execution");
+  console.log("Real Pi: pre-settlement abort cancelled; crash mid-check reconciled as error on session resume");
 } finally { await stop(resumed.pi); }

@@ -36,12 +36,20 @@ export default function engineeringHarness(pi: ExtensionAPI): void {
   };
   pi.on("session_shutdown", () => { active?.abort(); state = undefined; resumeNext = false; });
   if (automatic) {
-    pi.on("session_start", (_event, ctx) => {
+    pi.on("session_start", async (_event, ctx) => {
       const entries = ctx.sessionManager.getBranch();
       const last = [...entries].reverse().find((entry) => entry.type === "custom" && entry.customType === "pi-engineering-harness-state");
       state = last?.type === "custom" ? last.data as RepairState : undefined;
       resumeNext = false;
       summarized = false;
+      if (state?.verifying) {
+        // An unfinished check has no trustworthy result after a process restart.
+        state.lastEvidencePath = undefined;
+        if (config.recordEvidence) await summary(ctx, "error");
+        state.verifying = false;
+        state.lastStatus = "error";
+        pi.appendEntry("pi-engineering-harness-state", state);
+      }
     });
     pi.on("agent_settled", async (event, ctx) => {
       if (state && !summarized) {
@@ -76,20 +84,21 @@ export default function engineeringHarness(pi: ExtensionAPI): void {
       const abort = () => active?.abort();
       ctx.signal?.addEventListener("abort", abort, { once: true });
       running = true;
+      state.verifying = true;
+      state.attempts = (state.attempts ?? 0) + 1;
+      pi.appendEntry("pi-engineering-harness-state", state);
       try {
+        let after: string | undefined;
         const result = await verify({
           context: { executionId: state.executionId, taskId: state.taskId, agentId: "main", projectRoot: root ?? ctx.cwd, harnessVersion: pkg.version, sessionId: ctx.sessionManager.getSessionId() },
           contractPath: config.verifyPath, trigger: "automatic", signal: active.signal,
           timeoutSeconds: config.timeoutSeconds, maxFeedbackCharacters: config.maxFeedbackCharacters,
           evidenceDir: config.recordEvidence ? config.evidenceDir : false,
           attempt: state.repairContinuations + 1, repairContinuations: state.repairContinuations, changeFingerprint: now,
+          validateState: async () => { after = root ? await snapshot(root) : undefined; return after === now; },
         });
-        const after = root ? await snapshot(root) : undefined;
-        if (after !== now && result.status === "passed") {
-          result.status = "error";
-          result.diagnostics = "Repository changed during verification; result cannot validate the new state";
-        }
-        state.attempts = (state.attempts ?? 0) + 1;
+        if (after === undefined) after = root ? await snapshot(root) : undefined;
+        state.verifying = false;
         state.lastEvidencePath = result.evidencePath;
         // The feedback draft makes a final assistant response runnable; the pre-draft context cannot.
         const decision = decide(state, result, after, config.maxRepairContinuations);

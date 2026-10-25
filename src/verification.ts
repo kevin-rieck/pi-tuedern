@@ -30,6 +30,7 @@ export interface VerificationRequest {
   attempt?: number;
   repairContinuations?: number;
   changeFingerprint?: string;
+  validateState?: () => Promise<boolean>;
 }
 export interface VerificationResult {
   status: VerificationStatus;
@@ -138,6 +139,17 @@ export async function verify(request: VerificationRequest): Promise<Verification
     diagnostics: redact(diagnostics).slice(0, cap),
     command,
   };
+  if (result.status === "passed" && request.validateState) {
+    try {
+      if (!await request.validateState()) {
+        result.status = "error";
+        result.diagnostics = "Repository changed during verification; result cannot validate the new state".slice(0, cap);
+      }
+    } catch {
+      result.status = "error";
+      result.diagnostics = "Cannot inspect repository state after verification".slice(0, cap);
+    }
+  }
   if (request.evidenceDir !== false) {
     try {
       result.evidencePath = await writeEvidence({
