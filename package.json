@@ -3,10 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "keywords": ["pi-package"],
-  "engines": { "node": ">=22.19.0" },
-  "files": ["src", "schemas", "README.md"],
-  "pi": { "extensions": ["./src/extension.ts"] },
+  "keywords": [
+    "pi-package"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "files": [
+    "src",
+    "schemas",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/extension.ts"
+    ]
+  },
   "scripts": {
     "check": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
@@ -15,10 +27,16 @@
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
-  "overrides": { "undici": "8.12.3" },
+  "overrides": {
+    "undici": "8.12.3"
+  },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@types/node": "26.6.5",
     "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1"
   }
 }

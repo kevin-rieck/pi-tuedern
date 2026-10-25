@@ -5,6 +5,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import engineeringHarness from "../src/extension.ts";
 import { discoverProject, verify } from "../src/verification.ts";
+import { writeEvidence } from "../src/evidence.ts";
+import Ajv2020 from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
 
 async function fixture(script) {
   const root = await mkdtemp(join(tmpdir(), "pi-harness-"));
@@ -21,11 +24,16 @@ async function run(script, extras = {}) {
   assert.equal(evidence.status, result.status);
   assert.equal(evidence.acceptanceStatus, "not_evaluated");
   const schema = JSON.parse(await readFile(new URL("../schemas/evidence.schema.json", import.meta.url), "utf8"));
-  for (const key of schema.required) assert.ok(Object.hasOwn(evidence, key), `missing evidence field ${key}`);
-  assert.deepEqual(Object.keys(evidence).filter((key) => !Object.hasOwn(schema.properties, key)), []);
+  const validate = addFormats(new Ajv2020()).compile(schema);
+  assert.equal(validate(evidence), true, JSON.stringify(validate.errors));
   assert.equal(evidence.schemaVersion, schema.properties.schemaVersion.const);
   return { result, evidence };
 }
+
+test("evidence rejects invalid records before writing", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "invalid-evidence-"));
+  await assert.rejects(() => writeEvidence({ kind: "attempt", status: "passed" }, dir), /Invalid evidence/);
+});
 
 test("three project-owned language contracts share the same verifier", async () => {
   for (const name of ["python-monolith", "react-app", "rust-wasm"]) {

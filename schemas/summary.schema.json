@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kevin-rieck/pi-tuedern/schemas/summary.schema.json",
+  "title": "Pi engineering harness task summary v1",
+  "type": "object",
+  "required": ["kind", "schemaVersion", "harnessVersion", "executionId", "taskId", "agentId", "projectRootId", "timestamp", "finalOutcome", "acceptanceStatus", "attempts", "repairContinuations"],
+  "properties": {
+    "kind": { "const": "summary" },
+    "schemaVersion": { "const": "1.0" },
+    "harnessVersion": { "type": "string" },
+    "executionId": { "type": "string" },
+    "taskId": { "type": "string" },
+    "sessionId": { "type": "string" },
+    "agentId": { "type": "string" },
+    "projectRootId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "finalOutcome": { "enum": ["passed", "failed", "error", "unavailable", "cancelled", "not_applicable"] },
+    "acceptanceStatus": { "const": "not_evaluated" },
+    "attempts": { "type": "integer", "minimum": 0 },
+    "repairContinuations": { "type": "integer", "minimum": 0 },
+    "lastEvidencePath": { "type": "string" }
+  },
+  "additionalProperties": false
+}

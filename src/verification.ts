@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
-import { randomUUID, createHash } from "node:crypto";
-import { mkdir, open, realpath, stat } from "node:fs/promises";
-import { homedir } from "node:os";
+import { createHash } from "node:crypto";
+import { realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { writeEvidence } from "./evidence.ts";
 import { performance } from "node:perf_hooks";
 import pkg from "../package.json" with { type: "json" }; 
 
@@ -140,21 +140,17 @@ export async function verify(request: VerificationRequest): Promise<Verification
   };
   if (request.evidenceDir !== false) {
     try {
-      const dir = request.evidenceDir ?? join(homedir(), ".pi", "engineering-harness", "evidence");
-      await mkdir(dir, { recursive: true, mode: 0o700 });
-      const path = join(dir, `${Date.now()}-${randomUUID()}.json`);
-      const file = await open(path, "wx", 0o600);
-      try {
-        await file.writeFile(JSON.stringify({
-          schemaVersion: "1.0", harnessVersion: pkg.version, executionId: context.executionId,
-          taskId: context.taskId, sessionId: context.sessionId, agentId: context.agentId,
-          projectRootId: createHash("sha256").update(resolve(context.projectRoot)).digest("hex"),
-          timestamp: new Date().toISOString(), trigger: request.trigger,
-          attempt: request.attempt ?? 1, repairContinuations: request.repairContinuations ?? 0,
-          changeFingerprint: request.changeFingerprint, ...result,
-        }, null, 2));
-      } finally { await file.close(); }
-      result.evidencePath = path;
+      result.evidencePath = await writeEvidence({
+        kind: "attempt", schemaVersion: "1.0", harnessVersion: pkg.version, executionId: context.executionId,
+        taskId: context.taskId, ...(context.sessionId ? { sessionId: context.sessionId } : {}), agentId: context.agentId,
+        projectRootId: createHash("sha256").update(resolve(context.projectRoot)).digest("hex"),
+        timestamp: new Date().toISOString(), trigger: request.trigger, scriptPath: contractPath,
+        attempt: request.attempt ?? 1, repairContinuations: request.repairContinuations ?? 0,
+        ...(request.changeFingerprint ? { changeFingerprint: request.changeFingerprint } : {}),
+        status: result.status, acceptanceStatus: result.acceptanceStatus,
+        ...(exitCode !== undefined ? { exitCode } : {}), durationMs: result.durationMs,
+        diagnostics: result.diagnostics, command: result.command,
+      }, request.evidenceDir || undefined);
     } catch (error) {
       result.status = "error";
       result.diagnostics += `\nEvidence error: ${(error as Error).message}`;

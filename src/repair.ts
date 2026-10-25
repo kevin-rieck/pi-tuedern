@@ -12,6 +12,8 @@ export interface RepairState {
   lastFingerprint?: string;
   lastStatus?: VerificationResult["status"];
   repairContinuations: number;
+  attempts?: number;
+  lastEvidencePath?: string;
 }
 
 export function newExecution(baseline?: string): RepairState {
