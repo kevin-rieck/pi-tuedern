@@ -13,11 +13,13 @@ execFileSync("git", ["init", "-q", root]);
 const marker = join(temp, "started");
 await writeFile(join(root, "scripts", "verify"), '#!/usr/bin/env bash\necho start > "$PI_HARNESS_SMOKE_MARKER"\nsleep 30\nexit 1\n', { mode: 0o755 });
 await writeFile(join(root, "source.txt"), "original\n");
+const before = join(temp, "before.mjs");
+await writeFile(before, 'import { appendFileSync } from "node:fs";\nexport default function (pi) { pi.on("agent_before_settle", () => { appendFileSync("source.txt", "changed\\n"); }); }\n');
 const evidenceDir = join(temp, "evidence");
 const config = join(temp, "config.json");
 await writeFile(config, JSON.stringify({ automaticOnSettle: true, evidenceDir }));
 const env = { ...process.env, PI_HARNESS_CONFIG: config, PI_HARNESS_SMOKE_MARKER: marker, PI_OFFLINE: "1" };
-const pi = spawn(process.platform === "win32" ? "pi.cmd" : "pi", ["--approve", "--no-extensions", "-e", process.cwd(), "--mode", "rpc"], { cwd: root, env, shell: process.platform === "win32", stdio: ["pipe", "pipe", "pipe"] });
+const pi = spawn(process.platform === "win32" ? "pi.cmd" : "pi", ["--approve", "--no-tools", "--no-extensions", "-e", before, "-e", process.cwd(), "--mode", "rpc"], { cwd: root, env, shell: process.platform === "win32", stdio: ["pipe", "pipe", "pipe"] });
 let output = "";
 let error = "";
 const events = [];
@@ -30,11 +32,14 @@ pi.stdout.on("data", (chunk) => {
   }
 });
 pi.stderr.on("data", (chunk) => { error += chunk.toString(); });
-pi.stdin.write(JSON.stringify({ id: "task", type: "prompt", message: "Use the bash tool to write changed to source.txt, then finish. Do not run scripts/verify yourself." }) + "\n");
+pi.stdin.write(JSON.stringify({ id: "task", type: "prompt", message: "Reply done without using tools." }) + "\n");
 const deadline = Date.now() + 45000;
 try {
   while (!existsSync(marker) && Date.now() < deadline) await new Promise((done) => setTimeout(done, 100));
   assert.ok(existsSync(marker), `Pi did not reach verification: ${error}`);
+  pi.stdin.write(JSON.stringify({ id: "abort", type: "abort" }) + "\n");
+  await new Promise((done) => setTimeout(done, 1200));
+  assert.ok(existsSync(marker) && !existsSync(evidenceDir), "Native RPC abort unexpectedly terminated settlement verifier");
   pi.stdin.write(JSON.stringify({ id: "cancel", type: "prompt", message: "/verify-cancel" }) + "\n");
   while (!events.some((event) => event.id === "cancel") && Date.now() < deadline) await new Promise((done) => setTimeout(done, 100));
   assert.ok(events.some((event) => event.id === "cancel" && event.success && event.data?.disposition === "handled"), `Cancel command failed: ${error}`);
@@ -44,7 +49,7 @@ try {
   while (!events.some((event) => event.type === "agent_settled") && Date.now() < deadline) await new Promise((done) => setTimeout(done, 100));
   assert.ok(events.some((event) => event.type === "agent_settled"), `Pi did not settle: ${error}`);
   assert.equal(events.filter((event) => event.type === "entry_appended" && event.entry?.customType === "pi-engineering-harness-feedback").length, 0);
-  console.log("Real Pi cancellation: cancelled attempt, no automatic repair");
+  console.log("Real Pi: RPC abort did not stop settlement check; /verify-cancel did, no repair");
 } finally {
   pi.stdin.end();
   await Promise.race([new Promise((done) => pi.once("close", done)), new Promise((done) => setTimeout(() => { pi.kill(); done(); }, 5000))]);
