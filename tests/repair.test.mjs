@@ -42,9 +42,11 @@ test("opt-in settlement checks changed state, continues once, then passes and re
     await writeFile(join(root, "scripts", "verify"), "#!/usr/bin/env bash\ngrep -q fixed source.txt\n", { mode: 0o755 });
     await writeFile(join(root, "source.txt"), "original");
     const handlers = {};
+    const commands = {};
     const entries = [];
     const notices = [];
-    engineeringHarness({ on: (name, fn) => { handlers[name] = name === "agent_before_settle" ? (event, ctx) => fn({ ...event, entries: [{ type: "custom", customType: "another-extension" }], context: { canContinue: true } }, ctx) : fn; }, appendEntry: (customType, data) => entries.push({ type: "custom", customType, data: structuredClone(data) }), registerCommand: () => {} });
+    const messages = [];
+    engineeringHarness({ on: (name, fn) => { handlers[name] = name === "agent_before_settle" ? (event, ctx) => fn({ ...event, entries: [{ type: "custom", customType: "another-extension" }], context: { canContinue: true } }, ctx) : fn; }, appendEntry: (customType, data) => entries.push({ type: "custom", customType, data: structuredClone(data) }), registerCommand: (name, command) => { commands[name] = command.handler; }, sendUserMessage: (message) => messages.push(message) });
     const ctx = { cwd: root, sessionManager: { getBranch: () => entries, getSessionId: () => "session" }, ui: { notify: (...message) => notices.push(message) } };
     await handlers.session_start({}, ctx);
     await handlers.before_agent_start({ messageType: "user" }, ctx);
@@ -54,6 +56,12 @@ test("opt-in settlement checks changed state, continues once, then passes and re
     assert.equal(first.continue, true);
     assert.equal(first.entries[0].customType, "another-extension");
     assert.match(first.entries[1].content, /untrusted data/);
+    await handlers.session_shutdown({}, ctx);
+    await handlers.session_start({ reason: "resume" }, ctx);
+    await commands["resume-repair"]("", ctx);
+    assert.match(messages.at(-1), /Continue the previous/);
+    await handlers.before_agent_start({ messageType: "user" }, ctx);
+    assert.equal(entries.at(-1).data.repairContinuations, 1);
     await writeFile(join(root, "source.txt"), "fixed");
     assert.equal(await handlers.agent_before_settle({ outcome: "completed" }, ctx), undefined);
     assert.match(notices.at(-1)[0], /passed/);
@@ -68,9 +76,15 @@ test("opt-in settlement checks changed state, continues once, then passes and re
     await handlers.session_shutdown({}, ctx);
     await handlers.session_start({}, ctx); // restore the same execution from session entries
     assert.equal(entries.at(-1).data.repairContinuations, 2);
-    await handlers.before_agent_start({ messageType: "user" }, ctx); // first prompt after resume keeps unfinished execution
+    await commands["resume-repair"]("", ctx);
+    assert.match(messages.at(-1), /Continue the previous/);
+    await handlers.before_agent_start({ messageType: "user" }, ctx); // explicitly resumed repair keeps its budget
     assert.equal(entries.at(-1).data.repairContinuations, 2);
-    await handlers.before_agent_start({ messageType: "user" }, ctx); // next prompt is a new task
+    await handlers.before_agent_start({ messageType: "user" }, ctx); // genuinely new task resets it
+    assert.equal(entries.at(-1).data.repairContinuations, 0);
+    await handlers.session_shutdown({}, ctx);
+    await handlers.session_start({}, ctx);
+    await handlers.before_agent_start({ messageType: "user" }, ctx); // resumed session, new task by default
     assert.equal(entries.at(-1).data.repairContinuations, 0);
   } finally {
     if (old === undefined) delete process.env.PI_HARNESS_AUTOMATIC;
