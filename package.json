@@ -26,7 +26,7 @@
     "verify": "npm run check && npm test"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "1.4.0"
   },
   "overrides": {
     "undici": "8.12.3"
