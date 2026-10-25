@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kevin-rieck/pi-tuedern/schemas/evidence.schema.json",
+  "title": "Pi engineering harness verification attempt v1",
+  "type": "object",
+  "required": ["schemaVersion", "harnessVersion", "executionId", "taskId", "agentId", "projectRootId", "timestamp", "trigger", "command", "attempt", "repairContinuations", "status", "acceptanceStatus", "durationMs", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "harnessVersion": { "type": "string" },
+    "executionId": { "type": "string" },
+    "taskId": { "type": "string" },
+    "sessionId": { "type": "string" },
+    "agentId": { "type": "string" },
+    "projectRootId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "trigger": { "enum": ["manual", "automatic", "external"] },
+    "command": { "type": "string" },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "repairContinuations": { "type": "integer", "minimum": 0 },
+    "changeFingerprint": { "type": "string" },
+    "status": { "enum": ["passed", "failed", "error", "unavailable", "cancelled", "not_applicable"] },
+    "acceptanceStatus": { "const": "not_evaluated" },
+    "exitCode": { "type": "integer" },
+    "durationMs": { "type": "integer", "minimum": 0 },
+    "diagnostics": { "type": "string" }
+  },
+  "additionalProperties": false
+}

@@ -22,7 +22,7 @@ By default `/verify` only looks in Pi's current working directory (the search bo
 
 The verifier is independently importable from `src/verification.ts`: `verify({context, contractPath: "scripts/verify", trigger: "external"})`. Pass an explicit `ExecutionContext` and optionally `signal`, `timeoutSeconds`, `maxFeedbackCharacters`, or `evidenceDir: false`. Default timeout is 300 seconds; feedback retains the last 12000 characters of combined stdout/stderr. On Windows, Bash must be on PATH for the script; on Unix the script must be executable. No arbitrary text is interpolated into a shell command.
 
-Each run writes a restricted-permission JSON record outside the repo at `~/.pi/engineering-harness/evidence/<timestamp>-<uuid>.json` (override `evidenceDir` in library calls). Records include schemaVersion 1.0, command, result, identifiers, duration, attempt, and a hash of the root path; diagnostics are bounded and common token patterns redacted. Raw output and environment variables are not persisted. Regex redaction is **best effort**, not safe for secrets: do not print credentials in verification scripts. Evidence creation failure produces `error`, not a false success. `acceptanceStatus` is always `not_evaluated`.
+Each run writes a restricted-permission JSON record outside the repo at `~/.pi/engineering-harness/evidence/<timestamp>-<uuid>.json` (override `evidenceDir` in library calls). Records follow `schemas/evidence.schema.json` (schemaVersion 1.0) and include command, result, identifiers, duration, attempt, and a hash of the root path; diagnostics are bounded and common token patterns redacted. Raw output and environment variables are not persisted. Regex redaction is **best effort**, not safe for secrets: do not print credentials in verification scripts. Evidence creation failure produces `error`, not a false success. `acceptanceStatus` is always `not_evaluated`.
 
 ## Experimental automatic verification (not enabled by default)
 
@@ -30,4 +30,4 @@ Set `PI_HARNESS_AUTOMATIC=1` **before starting Pi** in a trusted project, with G
 
 ## Status
 
-PRD milestones M0/M1/M2/M3 are partial: standalone execution, fixtures and an opt-in lifecycle implementation are tested with mocks. Real Pi lifecycle composition and interruption, pinned-package installation, versioned evidence schema validation, and full task summaries remain before the PRD's release gates. Pi versions other than 1.4.0 are untested.
+PRD milestones M0/M1/M2/M3 are partial: standalone execution, fixtures and an opt-in lifecycle implementation are tested with mocks. Real Pi lifecycle composition and interruption, pinned-package installation, full evidence schema validation, and task summaries remain before the PRD's release gates. Pi versions other than 1.4.0 are untested.

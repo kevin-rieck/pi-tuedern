@@ -5,7 +5,7 @@
   "type": "module",
   "keywords": ["pi-package"],
   "engines": { "node": ">=22.19.0" },
-  "files": ["src", "README.md", "pi-engineering-harness-prd.md"],
+  "files": ["src", "schemas", "README.md"],
   "pi": { "extensions": ["./src/extension.ts"] },
   "scripts": {
     "check": "tsc --noEmit",

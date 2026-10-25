@@ -20,7 +20,10 @@ async function run(script, extras = {}) {
   const evidence = JSON.parse(await readFile(result.evidencePath, "utf8"));
   assert.equal(evidence.status, result.status);
   assert.equal(evidence.acceptanceStatus, "not_evaluated");
-  assert.equal(evidence.schemaVersion, "1.0");
+  const schema = JSON.parse(await readFile(new URL("../schemas/evidence.schema.json", import.meta.url), "utf8"));
+  for (const key of schema.required) assert.ok(Object.hasOwn(evidence, key), `missing evidence field ${key}`);
+  assert.deepEqual(Object.keys(evidence).filter((key) => !Object.hasOwn(schema.properties, key)), []);
+  assert.equal(evidence.schemaVersion, schema.properties.schemaVersion.const);
   return { result, evidence };
 }
 
