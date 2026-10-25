@@ -95,9 +95,12 @@ test("opt-in settlement checks changed state, continues once, then passes and re
     await handlers.session_start({}, ctx);
     await handlers.before_agent_start({ messageType: "user" }, ctx); // resumed session, new task by default
     assert.equal(entries.at(-1).data.repairContinuations, 0);
+    await handlers.agent_settled({ aborted: true }, ctx); // interrupted before settlement
+    await handlers.agent_settled({ aborted: true }, ctx); // no duplicate summary
     const summaries = await Promise.all((await readdir(evidenceDir)).map(async (name) => JSON.parse(await readFile(join(evidenceDir, name), "utf8"))));
     assert.ok(summaries.some((record) => record.kind === "summary" && record.finalOutcome === "failed" && record.repairContinuations === 2));
     assert.ok(summaries.some((record) => record.kind === "summary" && record.finalOutcome === "passed"));
+    assert.equal(summaries.filter((record) => record.kind === "summary" && record.finalOutcome === "cancelled" && record.attempts === 0).length, 1);
   } finally {
     if (oldConfig === undefined) delete process.env.PI_HARNESS_CONFIG;
     else process.env.PI_HARNESS_CONFIG = oldConfig;
