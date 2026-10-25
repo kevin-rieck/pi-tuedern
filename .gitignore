@@ -3,4 +3,5 @@ node_modules/
 *.tgz
 coverage/
 dist/
+fixtures/rust-wasm/target/
 .pi/evidence/

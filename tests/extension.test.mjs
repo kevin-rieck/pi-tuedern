@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import engineeringHarness from "../src/extension.ts";
 import { discoverProject, verify } from "../src/verification.ts";
 
@@ -23,6 +23,14 @@ async function run(script, extras = {}) {
   assert.equal(evidence.schemaVersion, "1.0");
   return { result, evidence };
 }
+
+test("three project-owned language contracts share the same verifier", async () => {
+  for (const name of ["python-monolith", "react-app", "rust-wasm"]) {
+    const root = resolve("fixtures", name);
+    const result = await verify({ context: { executionId: name, taskId: name, agentId: "main", projectRoot: root, harnessVersion: "0.1.0" }, contractPath: "scripts/verify", trigger: "external", evidenceDir: false });
+    assert.equal(result.status, "passed", `${name}: ${result.diagnostics}`);
+  }
+});
 
 test("pass, fail, unavailable all produce evidence without acceptance", async () => {
   assert.equal((await run("echo ok")).result.exitCode, 0);

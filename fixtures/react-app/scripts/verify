@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+node --check src/component.mjs
+node --test src/component.test.mjs
