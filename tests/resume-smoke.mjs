@@ -17,20 +17,26 @@ await writeFile(config, JSON.stringify({ automaticOnSettle: true, evidenceDir })
 const before = join(temp, "before.mjs");
 // Only for the smoke: force an actual worktree edit before each settlement so both repairs reverify.
 await writeFile(before, `import { appendFileSync } from "node:fs";
-export default function (pi) { pi.on("agent_before_settle", () => { appendFileSync("source.txt", "repair attempt\\n"); }); }
+export default function (pi) { pi.on("agent_before_settle", (event) => {
+  appendFileSync("source.txt", "repair attempt\\n");
+  return { entries: [...event.entries, { type: "custom", customType: "earlier-proposal", data: {} }] };
+}); }
 `);
 const after = join(temp, "after.mjs");
-await writeFile(after, `export default function (pi) { pi.on("agent_before_settle", () => ({ entries: [], continue: false })); }
+await writeFile(after, `export default function (pi) { pi.on("agent_before_settle", (event) => {
+  pi.appendEntry("settlement-probe", { earlier: event.entries.some((entry) => entry.customType === "earlier-proposal"), feedback: event.entries.some((entry) => entry.customType === "pi-engineering-harness-feedback"), continuation: event.continue });
+  return { entries: [], continue: false };
+}); }
 `);
 const sessionId = "11111111-1111-4111-8111-111111111111";
 const env = { ...process.env, PI_HARNESS_CONFIG: config, PI_OFFLINE: "1" };
-const cli = process.platform === "win32" ? "pi.cmd" : "pi";
+const cli = resolve("node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js");
 const harness = resolve("src/extension.ts");
 const records = async () => Promise.all((await readdir(evidenceDir)).map(async (name) => JSON.parse(await readFile(join(evidenceDir, name), "utf8"))));
 
 async function run(resume, suppress, messages) {
   const args = ["--approve", "--no-tools", "--no-extensions", "-e", before, "-e", harness, ...(suppress ? ["-e", after] : []), "--session-dir", join(temp, "sessions"), "--session-id", sessionId, "--mode", "rpc"];
-  const pi = spawn(cli, args, { cwd: root, env, shell: process.platform === "win32", stdio: ["pipe", "pipe", "pipe"] });
+  const pi = spawn(process.execPath, [cli, ...args], { cwd: root, env, stdio: ["pipe", "pipe", "pipe"] });
   let pending = "";
   let stderr = "";
   const events = [];
@@ -76,8 +82,18 @@ let attempts = (await records()).filter((r) => r.kind === "attempt");
 assert.equal(attempts.length, 1, JSON.stringify(attempts));
 assert.equal(attempts[0].status, "failed");
 assert.equal(attempts[0].repairContinuations, 0);
+const probe = first.filter((e) => e.type === "entry_appended" && e.entry?.customType === "settlement-probe");
+assert.equal(probe.length, 1);
+assert.deepEqual(probe[0].entry.data, { earlier: true, feedback: true, continuation: true }, "harness preserved the earlier proposal and the later handler saw its feedback and continuation");
 assert.equal(first.filter((e) => e.type === "entry_appended" && e.entry?.customType === "pi-engineering-harness-feedback").length, 0, "later handler discarded feedback");
-assert.ok((await records()).some((r) => r.kind === "summary" && r.executionId === attempts[0].executionId && r.finalOutcome === "failed" && r.repairContinuations === 1), "suppressed continuation must leave terminal failed summary");
+assert.equal(first.filter((e) => e.type === "agent_start").length, 1, "suppression prevented another agent run");
+assert.equal(first.find((e) => e.type === "agent_settled")?.aborted, false);
+const summaries = (await records()).filter((r) => r.kind === "summary" && r.executionId === attempts[0].executionId);
+assert.equal(summaries.length, 1, "suppressed continuation must leave one terminal summary");
+assert.equal(summaries[0].finalOutcome, "failed");
+assert.equal(summaries[0].attempts, 1);
+assert.equal(summaries[0].repairContinuations, 1, "the count records the request, not a completed continuation");
+assert.equal(summaries[0].acceptanceStatus, "not_evaluated");
 const second = await run(true, false, ["This is a genuinely new task. Reply done without tools."]);
 attempts = (await records()).filter((r) => r.kind === "attempt");
 const resumed = attempts.filter((r) => r.executionId === attempts[0].executionId);
@@ -85,5 +101,6 @@ assert.equal(resumed.length, 3, JSON.stringify(attempts));
 assert.deepEqual(resumed.map((r) => r.repairContinuations).sort(), [0, 1, 2]);
 assert.ok((await records()).some((r) => r.kind === "summary" && r.executionId === resumed[0].executionId && r.finalOutcome === "failed" && r.repairContinuations === 2));
 assert.ok(attempts.some((r) => r.executionId !== resumed[0].executionId && r.repairContinuations === 0), "new user task must reset the budget");
+assert.ok(second.some((e) => e.type === "entry_appended" && e.entry?.customType === "earlier-proposal"), "cooperative composition commits the earlier proposal");
 assert.ok(second.some((e) => e.type === "agent_settled"));
 console.log("Real Pi resume retained one repair; exhausted after two, new task reset; later handler suppressed initial feedback");
