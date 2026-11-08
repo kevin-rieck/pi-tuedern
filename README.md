@@ -24,7 +24,7 @@ Set `PI_HARNESS_AUTOMATIC=1` before starting Pi, or point `PI_HARNESS_CONFIG` to
 {"automaticOnSettle": true, "maxRepairContinuations": 2, "timeoutSeconds": 300}
 ```
 
-After a user prompt, changed or unknown repository state triggers verification at settlement. A failed script can prompt up to two repair continuations; `/resume-repair` resumes an interrupted repair. Default timeout is 300 seconds. Automatic mode requires Git for change detection (without it, verification runs conservatively). It is **not a hard gate**: later settlement handlers can override continuation, and Pi 1.4.0 abort does not interrupt a running settlement check; use `/verify-cancel`. Keep CI authoritative. See [release status and known gaps](docs/release-status.md).
+After a user prompt, changed or unknown repository state triggers verification at settlement. A failed script can prompt up to two repair continuations; `/resume-repair` resumes an interrupted repair. Default timeout is 300 seconds. Automatic mode requires Git for change detection (without it, verification runs conservatively). It is **not a hard gate**: later settlement handlers can override continuation. In Pi 1.4.0, neither Escape nor RPC `abort` interrupts a running settlement check; enter `/verify-cancel` while it runs (in RPC, send it as a `prompt`). The workaround records `cancelled` and requests no repair. Keep CI authoritative. See [release status and known gaps](docs/release-status.md).
 
 ## Evidence
 
