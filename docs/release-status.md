@@ -20,11 +20,23 @@ A fresh `PI_CODING_AGENT_DIR` and `PI_PACKAGE_DIR` were used to run `pi install 
 
 For a trusted project, install with `pi install --local git:github.com/kevin-rieck/pi-tuedern@77ae94a` only after reviewing the commit. Upgrade by replacing the pinned commit explicitly and rerunning `npm run verify`, fixture scripts, and CI. Roll back via `pi remove --local git:github.com/kevin-rieck/pi-tuedern@<new-ref>` then `pi install --local git:github.com/kevin-rieck/pi-tuedern@77ae94a` (or your previous known-good commit). Disable automatic repair immediately by removing the config opt-in or setting `PI_HARNESS_AUTOMATIC=0` before restarting Pi. Git refs must be reachable and Pi package installation may require network; retain a local archive for offline rollback. Test the rollback in the target repository before relying on it.
 
+## Installed manual failure and missing-script smoke
+
+Run from the reviewed checkout with Node >=22.19, Bash on PATH and `npm ci` completed:
+
+```sh
+npm run verify
+node tests/install-smoke.mjs
+node tests/install-smoke.mjs git:github.com/kevin-rieck/pi-tuedern@7e7a23d
+```
+
+The first smoke installs the current checkout as a local Pi package; the second installs the pinned Git source in a fresh isolated Pi agent directory. Both passed on Windows with Node 24.15.0 and the npm-locked Pi CLI 1.4.0. Each discovers the installed commands and invokes manual `/verify` through real Pi RPC for the passing React fixture, a disposable script that prints a diagnostic and exits 3, and a disposable project without a script. It checks the visible notification, matching attempt and summary evidence, and no agent run or repair messages with automatic mode enabled. The smoke prints its temporary artifact directory. RPC notifications are client-visible; this is not an interactive terminal rendering test.
+
 ## Acceptance matrix (verification ≠ product acceptance)
 
 | ID | Evidence / remaining gap |
 |---|---|
-| AT-01, 02, 06, 07 | Verifier pass/fail/missing/process behavior covered by unit tests; real installed `/verify` RPC invocation passed on React. Real command failure/missing UI not yet tested. |
+| AT-01, 02, 06, 07 | Verifier pass/fail/missing/process behavior covered by unit tests; `node tests/install-smoke.mjs` exercises installed manual `/verify` in real Pi 1.4.0 for pass, failure and missing script, checking RPC notifications, evidence and no repair. |
 | AT-03, 04 | Real Pi 1.4.0 `--print --mode json` disposable Git project: failing script produced feedback continuation and second successful check after a model edit. A competing handler registered **before** the harness appended an entry. |
 | AT-05 | `node tests/resume-smoke.mjs` (authenticated real Pi 1.4.0 RPC) confirms a failed initial check, resume with one remaining repair, and final failure after exactly two repair continuations. |
 | AT-08, 09, 10, 11 | Mock hook and Git fingerprint tests cover no-change, shell-created file, dirty baseline and changed-after-pass. A focused lifecycle test now confirms a check that edits the repository records `error` in both attempt and summary, not a false `passed` attempt. Real Pi coverage remains incomplete. |
