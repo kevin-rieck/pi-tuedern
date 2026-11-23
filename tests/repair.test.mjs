@@ -57,8 +57,15 @@ test("a check that changes the repository cannot persist a passed attempt", asyn
     await writeFile(join(root, "source.txt"), "agent edit");
     assert.equal(await handlers.agent_before_settle({ outcome: "completed" }, ctx), undefined);
     const records = await Promise.all((await readdir(evidenceDir)).filter((name) => name !== "harness.json").map(async (name) => JSON.parse(await readFile(join(evidenceDir, name), "utf8"))));
-    assert.equal(records.find((record) => record.kind === "attempt").status, "error");
-    assert.equal(records.find((record) => record.kind === "summary").finalOutcome, "error");
+    assert.equal(records.length, 2);
+    const attempt = records.find((record) => record.kind === "attempt");
+    const summary = records.find((record) => record.kind === "summary");
+    assert.equal(attempt.status, "error");
+    assert.equal(attempt.exitCode, 0);
+    assert.match(attempt.diagnostics, /Repository changed during verification/);
+    assert.equal(summary.finalOutcome, "error");
+    assert.equal(summary.attempts, 1);
+    assert.equal(summary.executionId, attempt.executionId);
     assert.ok(records.every((record) => record.acceptanceStatus === "not_evaluated"));
   } finally {
     if (oldConfig === undefined) delete process.env.PI_HARNESS_CONFIG;
