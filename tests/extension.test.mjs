@@ -3,11 +3,14 @@ import { test } from "node:test";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import engineeringHarness from "../src/extension.ts";
 import { discoverProject, verify } from "../src/verification.ts";
 import { writeEvidence } from "../src/evidence.ts";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
+
+// Mock tests use the locked host, not a parent Pi process's package override.
+delete process.env.PI_PACKAGE_DIR;
+const { default: engineeringHarness } = await import("../src/extension.ts");
 
 async function fixture(script) {
   const root = await mkdtemp(join(tmpdir(), "pi-harness-"));

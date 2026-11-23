@@ -2,12 +2,15 @@ import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { hasEquivalentEvidence, writeEvidence } from "./evidence.ts";
 import { loadConfig } from "./config.ts";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { discoverProject, verify } from "./verification.ts";
 import { decide, fingerprint, newExecution, type RepairState } from "./repair.ts";
 import pkg from "../package.json" with { type: "json" };
 
 export default function engineeringHarness(pi: ExtensionAPI): void {
+  if (VERSION !== pkg.peerDependencies["@earendil-works/pi-coding-agent"]) {
+    throw new Error(`Unsupported Pi host ${VERSION}; pi-engineering-harness requires Pi ${pkg.peerDependencies["@earendil-works/pi-coding-agent"]}`);
+  }
   const config = loadConfig();
   if (!config.enabled) return;
   let running = false;

@@ -4,7 +4,7 @@ A Pi extension that runs a trusted project's `scripts/verify` and records the re
 
 ## Run
 
-Requires Node >=22.19 and Pi 1.4.0 (the only tested host version). This package is private, not published to npm.
+Requires Node >=22.19 and Pi 1.4.0 (the only supported host version). The extension rejects other native Pi versions at load with an error; npm peer metadata alone is not a runtime guard. This package is private, not published to npm.
 
 ```sh
 npm ci
