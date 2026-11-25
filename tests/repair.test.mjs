@@ -5,7 +5,10 @@ import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide, fingerprint, newExecution } from "../src/repair.ts";
-import engineeringHarness from "../src/extension.ts";
+
+// Mock tests use the locked host, not a parent Pi process's package override.
+delete process.env.PI_PACKAGE_DIR;
+const { default: engineeringHarness } = await import("../src/extension.ts");
 
 const result = (status) => ({ status, acceptanceStatus: "not_evaluated", diagnostics: "broken", command: "./scripts/verify", exitCode: 1, durationMs: 1 });
 

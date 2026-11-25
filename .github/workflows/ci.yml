@@ -11,9 +11,34 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+      - run: node tests/compat-smoke.mjs
       - run: ./scripts/verify
         working-directory: fixtures/python-monolith
       - run: ./scripts/verify
         working-directory: fixtures/react-app
       - run: ./scripts/verify
         working-directory: fixtures/rust-wasm
+  supported-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: node tests/install-smoke.mjs
+  unsupported-host:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        pi-version: ['1.3.0', '1.5.0']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --prefix "$RUNNER_TEMP/pi-host" --no-save --ignore-scripts "@earendil-works/pi-coding-agent@${{ matrix.pi-version }}"
+      - run: node tests/unsupported-host-smoke.mjs "$RUNNER_TEMP/pi-host/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js" "${{ matrix.pi-version }}"
